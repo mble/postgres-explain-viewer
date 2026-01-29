@@ -3,7 +3,7 @@ import { HOT_NODE_THRESHOLDS } from '$lib/constants/thresholds';
 
 let suggestionIdCounter = 0;
 
-export function generateSuggestions(node: AnalyzedPlanNode): Suggestion[] {
+export function generateSuggestions(node: AnalyzedPlanNode, ancestors?: AnalyzedPlanNode[]): Suggestion[] {
 	const suggestions: Suggestion[] = [];
 
 	// Seq Scan on large table
@@ -11,6 +11,58 @@ export function generateSuggestions(node: AnalyzedPlanNode): Suggestion[] {
 		const tableName = node['Relation Name'] || 'table';
 		suggestions.push(
 			createSuggestion(node.id, 'warning', 'indexing', 'Consider adding an index', `Sequential scan on "${tableName}" returned ${node['Actual Rows']?.toLocaleString()} rows. Consider adding an index on frequently filtered or joined columns.`)
+		);
+	}
+
+	// Missing Index: Seq Scan with Filter
+	if (node['Node Type'] === 'Seq Scan' && node['Filter'] && !node.hotReasons.includes('seq-scan-large')) {
+		const filter = node['Filter'];
+		const tableName = node['Relation Name'] || 'table';
+		// Check if filter references columns (contains parentheses or common column patterns)
+		if (filter && (filter.includes('(') || /\b\w+\s*[=<>!]/.test(filter))) {
+			suggestions.push(
+				createSuggestion(
+					node.id,
+					'info',
+					'indexing',
+					'Potential missing index',
+					`Sequential scan on "${tableName}" uses filter "${filter}". Consider adding an index on the filtered column(s) if this query runs frequently.`
+				)
+			);
+		}
+	}
+
+	// Parallel Underutilization: Workers Planned > Workers Launched
+	if (node['Workers Planned'] !== undefined && node['Workers Launched'] !== undefined) {
+		if (node['Workers Planned'] > node['Workers Launched']) {
+			const planned = node['Workers Planned'];
+			const launched = node['Workers Launched'];
+			suggestions.push(
+				createSuggestion(
+					node.id,
+					'warning',
+					'memory',
+					'Parallel workers underutilized',
+					`Only ${launched} of ${planned} planned parallel workers were launched. This may be due to max_parallel_workers limit or resource constraints. Check max_parallel_workers_per_gather and max_parallel_workers settings.`
+				)
+			);
+		}
+	}
+
+	// High Temp Usage
+	const tempRead = node['Temp Read Blocks'] ?? 0;
+	const tempWritten = node['Temp Written Blocks'] ?? 0;
+	if (tempRead > 0 || tempWritten > 0) {
+		const totalTemp = tempRead + tempWritten;
+		const tempMB = ((totalTemp * 8192) / (1024 * 1024)).toFixed(1);
+		suggestions.push(
+			createSuggestion(
+				node.id,
+				'warning',
+				'memory',
+				'High temporary disk usage',
+				`This ${node['Node Type']} operation used ${totalTemp.toLocaleString()} temp blocks (~${tempMB} MB). Consider increasing work_mem to avoid disk spills.`
+			)
 		);
 	}
 
