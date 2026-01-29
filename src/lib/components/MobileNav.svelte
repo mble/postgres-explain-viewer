@@ -22,7 +22,7 @@
 			{#each panels as panel}
 				<button
 					onclick={() => onPanelChange(panel.id)}
-					class="flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors {
+					class="relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors {
 						activePanel === panel.id
 							? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
 							: 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'

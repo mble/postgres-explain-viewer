@@ -138,11 +138,17 @@ export function tokenizeSql(sql: string): SqlToken[] {
 			continue;
 		}
 
-		// Quoted identifier
+		// Quoted identifier (handles escaped "" like single quotes handle '')
 		if (sql[pos] === '"') {
 			let end = pos + 1;
-			while (end < sql.length && sql[end] !== '"') {
-				end++;
+			while (end < sql.length) {
+				if (sql[end] === '"' && sql[end + 1] === '"') {
+					end += 2; // Escaped quote
+				} else if (sql[end] === '"') {
+					break;
+				} else {
+					end++;
+				}
 			}
 			const ident = sql.slice(pos, end + 1);
 			tokens.push({ type: 'identifier', value: ident });

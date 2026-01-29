@@ -34,13 +34,18 @@
 		}
 
 		// Start onboarding for new users (check if they haven't completed it)
-		let unsubOnboarding: (() => void) | undefined;
-		onboarding.hasCompleted.subscribe((completed) => {
+		let onboardingTimeout: ReturnType<typeof setTimeout> | undefined;
+		const unsubOnboarding = onboarding.hasCompleted.subscribe((completed) => {
 			if (!completed && browser) {
 				// Delay start to let page render
-				setTimeout(() => onboarding.start(), 500);
+				onboardingTimeout = setTimeout(() => onboarding.start(), 500);
 			}
-		})();
+		});
+
+		return () => {
+			unsubOnboarding();
+			if (onboardingTimeout) clearTimeout(onboardingTimeout);
+		};
 	});
 
 	// Update URL when plan changes
