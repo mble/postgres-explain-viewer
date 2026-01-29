@@ -13,12 +13,14 @@
 	import { transformToTree, type TreeNode } from '$lib/utils/tree-transform';
 	import { SELF_TIME_COLOR_THRESHOLDS, COLOR_SCALE, NODE_TEXT_COLORS } from '$lib/constants/thresholds';
 	import type { AnalyzedPlanNode } from '$lib/types/explain';
+	import { buildNavigationMap, handleKeyboardNavigation, type NavigationMap } from '$lib/utils/keyboard-navigation';
 
 	let container: HTMLDivElement;
 	let svg: Selection<SVGSVGElement, unknown, null, undefined>;
 	let g: Selection<SVGGElement, unknown, null, undefined>;
 	let zoom: ZoomBehavior<SVGSVGElement, unknown>;
 	let nodePositions: Map<string, { x: number; y: number }> = new Map();
+	let navMap: NavigationMap | null = null;
 
 	// Larger card dimensions
 	const nodeWidth = 260;
@@ -43,6 +45,7 @@
 	function getThemeColors(isDark: boolean) {
 		return {
 			linkStroke: isDark ? '#4b5563' : '#cbd5e1',
+			linkStrokeHot: isDark ? '#f87171' : '#fca5a5',
 			nodeStroke: isDark ? '#4b5563' : '#d1d5db',
 			nodeStrokeHot: '#ef4444',
 			nodeStrokeSelected: '#2563eb',
@@ -50,8 +53,25 @@
 			textPrimary: isDark ? '#f3f4f6' : '#1f2937',
 			textSecondary: isDark ? '#9ca3af' : '#6b7280',
 			textMuted: isDark ? '#6b7280' : '#9ca3af',
-			divider: isDark ? '#374151' : '#e5e7eb'
+			divider: isDark ? '#374151' : '#e5e7eb',
+			linkLabelBg: isDark ? '#374151' : '#f3f4f6',
+			linkLabelText: isDark ? '#d1d5db' : '#6b7280'
 		};
+	}
+
+	function getLinkWidth(rows: number, maxRows: number): number {
+		// Scale link width between 1.5 and 6 based on relative row count
+		if (maxRows === 0) return 2;
+		const ratio = rows / maxRows;
+		return 1.5 + ratio * 4.5;
+	}
+
+	function getLinkColor(rows: number, maxRows: number, colors: ReturnType<typeof getThemeColors>): string {
+		// Highlight high-volume links
+		if (maxRows > 0 && rows / maxRows > 0.5) {
+			return colors.linkStrokeHot;
+		}
+		return colors.linkStroke;
 	}
 
 	function formatNumber(n: number): string {
@@ -139,19 +159,121 @@
 		const treeHeight = maxY - minY;
 		const offsetY = (height - margin.top - margin.bottom - treeHeight) / 2 - minY;
 
-		// Draw links
-		g.selectAll('.link')
+		// Find max rows for scaling link widths
+		let maxRows = 0;
+		treeRoot.descendants().forEach(d => {
+			const rows = d.data.data['Actual Rows'] ?? 0;
+			if (rows > maxRows) maxRows = rows;
+		});
+
+		// Define arrowhead marker
+		const defs = svg.append('defs');
+
+		// Create arrow marker for normal links
+		defs.append('marker')
+			.attr('id', 'arrow')
+			.attr('viewBox', '0 -5 10 10')
+			.attr('refX', 8)
+			.attr('refY', 0)
+			.attr('markerWidth', 6)
+			.attr('markerHeight', 6)
+			.attr('orient', 'auto')
+			.append('path')
+			.attr('d', 'M0,-4L10,0L0,4')
+			.attr('fill', colors.linkStroke);
+
+		// Create arrow marker for hot links
+		defs.append('marker')
+			.attr('id', 'arrow-hot')
+			.attr('viewBox', '0 -5 10 10')
+			.attr('refX', 8)
+			.attr('refY', 0)
+			.attr('markerWidth', 6)
+			.attr('markerHeight', 6)
+			.attr('orient', 'auto')
+			.append('path')
+			.attr('d', 'M0,-4L10,0L0,4')
+			.attr('fill', colors.linkStrokeHot);
+
+		// Draw links with variable width and arrowheads
+		const links = g.selectAll('.link')
 			.data(treeRoot.links())
 			.enter()
-			.append('path')
+			.append('g')
+			.attr('class', 'link-group');
+
+		// Draw link paths
+		links.append('path')
 			.attr('class', 'link')
 			.attr('fill', 'none')
-			.attr('stroke', colors.linkStroke)
-			.attr('stroke-width', 2)
+			.attr('stroke', d => {
+				const rows = d.source.data.data['Actual Rows'] ?? 0;
+				return getLinkColor(rows, maxRows, colors);
+			})
+			.attr('stroke-width', d => {
+				const rows = d.source.data.data['Actual Rows'] ?? 0;
+				return getLinkWidth(rows, maxRows);
+			})
+			.attr('stroke-linecap', 'round')
+			.attr('marker-end', d => {
+				const rows = d.source.data.data['Actual Rows'] ?? 0;
+				const isHot = maxRows > 0 && rows / maxRows > 0.5;
+				return isHot ? 'url(#arrow-hot)' : 'url(#arrow)';
+			})
 			.attr('d', linkHorizontal<HierarchyPointLink<TreeNode>, HierarchyPointNode<TreeNode>>()
 				.x(d => d.y)
 				.y(d => d.x + offsetY)
 			);
+
+		// Draw connection dots at source (child node)
+		links.append('circle')
+			.attr('cx', d => d.source.y)
+			.attr('cy', d => d.source.x + offsetY)
+			.attr('r', d => {
+				const rows = d.source.data.data['Actual Rows'] ?? 0;
+				return Math.max(3, getLinkWidth(rows, maxRows) / 2 + 1);
+			})
+			.attr('fill', d => {
+				const rows = d.source.data.data['Actual Rows'] ?? 0;
+				return getLinkColor(rows, maxRows, colors);
+			});
+
+		// Draw row count labels on links
+		links.each(function(d) {
+			const rows = d.source.data.data['Actual Rows'];
+			if (rows === undefined || rows === 0) return;
+
+			const linkGroup = select(this);
+
+			// Calculate midpoint of the link
+			const midX = (d.source.y + d.target.y) / 2;
+			const midY = (d.source.x + d.target.x) / 2 + offsetY;
+
+			// Background pill for label
+			const labelText = formatNumber(rows);
+			const labelWidth = Math.max(labelText.length * 7 + 8, 32);
+			const labelHeight = 16;
+
+			linkGroup.append('rect')
+				.attr('x', midX - labelWidth / 2)
+				.attr('y', midY - labelHeight / 2)
+				.attr('width', labelWidth)
+				.attr('height', labelHeight)
+				.attr('rx', 8)
+				.attr('fill', colors.linkLabelBg)
+				.attr('stroke', colors.linkStroke)
+				.attr('stroke-width', 1);
+
+			linkGroup.append('text')
+				.attr('x', midX)
+				.attr('y', midY + 4)
+				.attr('text-anchor', 'middle')
+				.attr('font-size', '9px')
+				.attr('font-weight', '500')
+				.attr('font-family', 'ui-monospace, monospace')
+				.attr('fill', colors.linkLabelText)
+				.text(labelText);
+		});
 
 		// Store node positions for centering
 		nodePositions = new Map();
@@ -495,7 +617,11 @@
 				// Reset zoom tracking for new plan
 				hasInitialZoom = false;
 				currentTransform = null;
+				// Build navigation map for keyboard navigation
+				navMap = buildNavigationMap(plan.root);
 				setTimeout(() => renderTree(plan, currentTheme === 'dark', true), 0);
+			} else {
+				navMap = null;
 			}
 		});
 
@@ -546,13 +672,19 @@
 	});
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
+<!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
 <div
 	bind:this={container}
-	class="w-full h-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden"
+	class="w-full h-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
 	onclick={() => selectNode(null)}
-	onkeydown={(e) => e.key === 'Escape' && selectNode(null)}
+	onkeydown={(e) => {
+		if (!navMap) return;
+		const newNodeId = handleKeyboardNavigation(e, $selectedNodeId, navMap);
+		if (newNodeId !== $selectedNodeId) {
+			selectNode(newNodeId);
+		}
+	}}
 	role="application"
-	aria-label="Query plan visualization"
-	tabindex="-1"
+	aria-label="Query plan visualization. Use arrow keys to navigate: Left for parent, Right for child, Up/Down for siblings, Home/End for first/last node."
+	tabindex="0"
 ></div>
