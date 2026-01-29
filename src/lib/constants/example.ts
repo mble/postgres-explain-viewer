@@ -1,0 +1,161 @@
+// Example plan demonstrating EXPLAIN (ANALYZE, BUFFERS, WAL, TIMING) output
+// Note: WAL stats are typically only present for write operations (INSERT/UPDATE/DELETE)
+// This example includes them for demonstration purposes
+
+export const EXAMPLE_PLAN = [
+	{
+		Plan: {
+			'Node Type': 'Aggregate',
+			Strategy: 'Plain',
+			'Partial Mode': 'Simple',
+			'Parallel Aware': false,
+			'Async Capable': false,
+			'Startup Cost': 25462.15,
+			'Total Cost': 25462.16,
+			'Plan Rows': 1,
+			'Plan Width': 8,
+			'Actual Startup Time': 152.484,
+			'Actual Total Time': 152.485,
+			'Actual Rows': 1,
+			'Actual Loops': 1,
+			// Buffer stats (BUFFERS option)
+			'Shared Hit Blocks': 12847,
+			'Shared Read Blocks': 1523,
+			'Shared Dirtied Blocks': 45,
+			'Shared Written Blocks': 12,
+			'Local Hit Blocks': 0,
+			'Local Read Blocks': 0,
+			'Temp Read Blocks': 0,
+			'Temp Written Blocks': 0,
+			// I/O timing (TIMING option with track_io_timing)
+			'I/O Read Time': 8.234,
+			'I/O Write Time': 0.156,
+			// WAL stats (WAL option) - typically for write operations
+			'WAL Records': 156,
+			'WAL FPI': 3,
+			'WAL Bytes': 24680,
+			Plans: [
+				{
+					'Node Type': 'Hash Join',
+					'Parent Relationship': 'Outer',
+					'Parallel Aware': false,
+					'Async Capable': false,
+					'Join Type': 'Inner',
+					'Startup Cost': 3641.0,
+					'Total Cost': 25212.15,
+					'Plan Rows': 100000,
+					'Plan Width': 0,
+					'Actual Startup Time': 42.631,
+					'Actual Total Time': 143.263,
+					'Actual Rows': 50000,
+					'Actual Loops': 1,
+					'Inner Unique': true,
+					'Hash Cond': '(orders.customer_id = customers.id)',
+					'Shared Hit Blocks': 12847,
+					'Shared Read Blocks': 1523,
+					'Shared Dirtied Blocks': 45,
+					'Shared Written Blocks': 12,
+					'I/O Read Time': 8.234,
+					'I/O Write Time': 0.156,
+					'WAL Records': 156,
+					'WAL FPI': 3,
+					'WAL Bytes': 24680,
+					Plans: [
+						{
+							'Node Type': 'Seq Scan',
+							'Parent Relationship': 'Outer',
+							'Parallel Aware': false,
+							'Async Capable': false,
+							'Relation Name': 'orders',
+							Schema: 'public',
+							Alias: 'o',
+							'Startup Cost': 0.0,
+							'Total Cost': 16370.0,
+							'Plan Rows': 1000000,
+							'Plan Width': 4,
+							'Actual Startup Time': 0.016,
+							'Actual Total Time': 51.583,
+							'Actual Rows': 100000,
+							'Actual Loops': 1,
+							Filter: "(status = 'completed'::text)",
+							'Rows Removed by Filter': 900000,
+							'Shared Hit Blocks': 8234,
+							'Shared Read Blocks': 1245,
+							'Shared Dirtied Blocks': 45,
+							'Shared Written Blocks': 12,
+							'I/O Read Time': 6.891,
+							'I/O Write Time': 0.156,
+							'WAL Records': 156,
+							'WAL FPI': 3,
+							'WAL Bytes': 24680
+						},
+						{
+							'Node Type': 'Hash',
+							'Parent Relationship': 'Inner',
+							'Parallel Aware': false,
+							'Async Capable': false,
+							'Startup Cost': 2291.0,
+							'Total Cost': 2291.0,
+							'Plan Rows': 100000,
+							'Plan Width': 4,
+							'Actual Startup Time': 42.572,
+							'Actual Total Time': 42.573,
+							'Actual Rows': 50000,
+							'Actual Loops': 1,
+							'Hash Buckets': 131072,
+							'Hash Batches': 1,
+							'Original Hash Batches': 1,
+							// Memory stats (MEMORY option - PostgreSQL 17+)
+							'Peak Memory Usage': 2262,
+							'Shared Hit Blocks': 4613,
+							'Shared Read Blocks': 278,
+							'Shared Dirtied Blocks': 0,
+							'Shared Written Blocks': 0,
+							'I/O Read Time': 1.343,
+							'I/O Write Time': 0,
+							Plans: [
+								{
+									'Node Type': 'Seq Scan',
+									'Parent Relationship': 'Outer',
+									'Parallel Aware': false,
+									'Async Capable': false,
+									'Relation Name': 'customers',
+									Schema: 'public',
+									Alias: 'c',
+									'Startup Cost': 0.0,
+									'Total Cost': 2291.0,
+									'Plan Rows': 100000,
+									'Plan Width': 4,
+									'Actual Startup Time': 0.008,
+									'Actual Total Time': 21.156,
+									'Actual Rows': 50000,
+									'Actual Loops': 1,
+									Filter: "(country = 'US'::text)",
+									'Rows Removed by Filter': 50000,
+									'Shared Hit Blocks': 4613,
+									'Shared Read Blocks': 278,
+									'Shared Dirtied Blocks': 0,
+									'Shared Written Blocks': 0,
+									'I/O Read Time': 1.343,
+									'I/O Write Time': 0
+								}
+							]
+						}
+					]
+				}
+			]
+		},
+		Planning: {
+			'Shared Hit Blocks': 124,
+			'Shared Read Blocks': 12,
+			'Shared Dirtied Blocks': 0,
+			'Shared Written Blocks': 0
+		},
+		'Planning Time': 0.512,
+		'Execution Time': 152.847,
+		Settings: {
+			work_mem: '64MB',
+			random_page_cost: '1.1'
+		}
+	}
+];
