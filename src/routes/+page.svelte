@@ -1,5 +1,12 @@
 <script lang="ts">
-	import { analyzedPlan, selectedNode } from '$lib/stores/plan';
+	import { onMount } from 'svelte';
+	import { browser } from '$app/environment';
+	import { analyzedPlan, selectedNode, loadPlan, rawJson, sqlQuery } from '$lib/stores/plan';
+	import { planHistory } from '$lib/stores/history';
+	import { comparison } from '$lib/stores/comparison';
+	const comparisonIsActive = comparison.isActive;
+	import { onboarding, currentStep } from '$lib/stores/onboarding';
+	import { decodeFromUrl, updateUrlHash, hasUrlState } from '$lib/utils/url-state';
 	import ExplainInput from '$lib/components/ExplainInput.svelte';
 	import PlanTree from '$lib/components/PlanTree.svelte';
 	import NodeDetails from '$lib/components/NodeDetails.svelte';
@@ -7,14 +14,77 @@
 	import Legend from '$lib/components/Legend.svelte';
 	import ThemeToggle from '$lib/components/ThemeToggle.svelte';
 	import NodeList from '$lib/components/NodeList.svelte';
+	import ExportMenu from '$lib/components/ExportMenu.svelte';
+	import PlanHistory from '$lib/components/PlanHistory.svelte';
+	import OnboardingTooltips from '$lib/components/OnboardingTooltips.svelte';
+	import MobileNav from '$lib/components/MobileNav.svelte';
+	import PlanComparison from '$lib/components/PlanComparison.svelte';
 
 	let showSuggestions = $state(true);
+	let showHistory = $state(false);
+	let mobilePanel = $state<'tree' | 'list' | 'details' | 'insights'>('tree');
+
+	// Load plan from URL on mount
+	onMount(() => {
+		if (browser && hasUrlState()) {
+			const state = decodeFromUrl(window.location.hash);
+			if (state) {
+				loadPlan(state.json, state.sql ?? '');
+			}
+		}
+
+		// Start onboarding for new users (check if they haven't completed it)
+		let unsubOnboarding: (() => void) | undefined;
+		onboarding.hasCompleted.subscribe((completed) => {
+			if (!completed && browser) {
+				// Delay start to let page render
+				setTimeout(() => onboarding.start(), 500);
+			}
+		})();
+	});
+
+	// Update URL when plan changes
+	$effect(() => {
+		if (browser && $analyzedPlan && $rawJson) {
+			updateUrlHash({ json: $rawJson, sql: $sqlQuery || undefined });
+			// Save to history
+			planHistory.addPlan($rawJson, $sqlQuery || undefined, $analyzedPlan.executionTime);
+		}
+	});
+
+	// Advance onboarding when plan loads
+	$effect(() => {
+		if ($analyzedPlan && $currentStep?.id === 'input') {
+			onboarding.skipToStep('hot-nodes');
+		}
+	});
+
+	function toggleHistory() {
+		showHistory = !showHistory;
+	}
+
+	function handleMobilePanelChange(panel: 'tree' | 'list' | 'details' | 'insights') {
+		mobilePanel = panel;
+		if (panel === 'details') {
+			showSuggestions = false;
+		} else if (panel === 'insights') {
+			showSuggestions = true;
+		}
+	}
 </script>
 
 <svelte:head>
 	<title>PostgreSQL EXPLAIN Viewer</title>
 	<meta name="description" content="Visualize and analyze PostgreSQL EXPLAIN plans with performance insights and optimization suggestions." />
 </svelte:head>
+
+<!-- Plan Comparison Overlay -->
+{#if $comparisonIsActive}
+	<PlanComparison />
+{/if}
+
+<!-- Onboarding Tooltips -->
+<OnboardingTooltips />
 
 <div class="h-screen flex flex-col overflow-hidden bg-[var(--surface-secondary)]">
 	<!-- Header -->
@@ -28,25 +98,56 @@
 							<path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
 						</svg>
 					</div>
-					<div>
+					<div class="hidden sm:block">
 						<h1 class="text-[15px] font-semibold text-[var(--text-primary)] leading-tight">EXPLAIN Viewer</h1>
 						<p class="text-[11px] text-[var(--text-tertiary)] leading-tight">PostgreSQL Query Analyzer</p>
 					</div>
 				</div>
 			</div>
 
-			<div class="flex items-center gap-3">
+			<div class="flex items-center gap-2 sm:gap-3">
 				{#if $analyzedPlan}
-					<Legend />
+					<div class="hidden md:block">
+						<Legend />
+					</div>
+
+					<!-- Compare Button -->
+					<button
+						onclick={() => comparison.enable()}
+						class="btn btn-ghost hidden sm:flex"
+						title="Compare plans"
+					>
+						<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+						</svg>
+						<span class="hidden lg:inline">Compare</span>
+					</button>
+
+					<!-- Export Menu -->
+					<ExportMenu />
 				{/if}
-				<div class="w-px h-6 bg-[var(--border-primary)]"></div>
+
+				<!-- History Button -->
+				<button
+					onclick={toggleHistory}
+					class="btn btn-ghost relative"
+					title="Plan history"
+					aria-expanded={showHistory}
+				>
+					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+					</svg>
+					<span class="hidden lg:inline">History</span>
+				</button>
+
+				<div class="w-px h-6 bg-[var(--border-primary)] hidden sm:block"></div>
 				<ThemeToggle />
 			</div>
 		</div>
 	</header>
 
 	<!-- Main Content -->
-	<main class="flex-1 min-h-0 p-3 sm:p-4">
+	<main class="flex-1 min-h-0 p-3 sm:p-4 pb-16 md:pb-4">
 		<div class="max-w-screen-2xl mx-auto h-full">
 			{#if !$analyzedPlan}
 				<!-- Landing State -->
@@ -76,8 +177,8 @@
 					</div>
 				</div>
 			{:else}
-				<!-- Analysis View -->
-				<div class="h-full grid grid-cols-12 gap-3 animate-fade-in">
+				<!-- Analysis View - Desktop -->
+				<div class="h-full hidden md:grid grid-cols-12 gap-3 animate-fade-in">
 					<!-- Left Panel: Summary + Node List -->
 					<div class="col-span-12 lg:col-span-3 flex flex-col gap-3 min-h-0">
 						<!-- Plan Summary -->
@@ -139,7 +240,80 @@
 						</div>
 					</div>
 				</div>
+
+				<!-- Analysis View - Mobile -->
+				<div class="h-full md:hidden animate-fade-in">
+					{#if mobilePanel === 'tree'}
+						<div class="h-full card overflow-hidden">
+							<PlanTree />
+						</div>
+					{:else if mobilePanel === 'list'}
+						<div class="h-full card p-4 overflow-hidden">
+							<NodeList />
+						</div>
+					{:else if mobilePanel === 'details'}
+						<div class="h-full card p-4 overflow-hidden">
+							<NodeDetails />
+						</div>
+					{:else if mobilePanel === 'insights'}
+						<div class="h-full card p-4 overflow-hidden">
+							<SuggestionPanel />
+						</div>
+					{/if}
+				</div>
 			{/if}
 		</div>
 	</main>
+
+	<!-- Mobile Navigation -->
+	<MobileNav activePanel={mobilePanel} onPanelChange={handleMobilePanelChange} />
 </div>
+
+<!-- History Slide-out Panel -->
+{#if showHistory}
+	<!-- Backdrop -->
+	<div
+		class="fixed inset-0 z-40 bg-black/30 backdrop-blur-sm"
+		onclick={() => showHistory = false}
+		onkeydown={(e) => e.key === 'Escape' && (showHistory = false)}
+		role="button"
+		tabindex="-1"
+		aria-label="Close history panel"
+	></div>
+
+	<!-- Panel -->
+	<div class="fixed top-0 right-0 bottom-0 z-50 w-80 max-w-[90vw] bg-[var(--surface-elevated)] border-l border-[var(--border-primary)] shadow-xl animate-slide-in-right">
+		<div class="flex flex-col h-full p-4">
+			<div class="flex items-center justify-between mb-4">
+				<h2 class="text-lg font-semibold text-[var(--text-primary)]">History</h2>
+				<button
+					onclick={() => showHistory = false}
+					class="p-1.5 rounded-lg hover:bg-[var(--surface-tertiary)] text-[var(--text-secondary)]"
+					aria-label="Close"
+				>
+					<svg class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+			<div class="flex-1 min-h-0">
+				<PlanHistory onClose={() => showHistory = false} />
+			</div>
+		</div>
+	</div>
+{/if}
+
+<style>
+	@keyframes slide-in-right {
+		from {
+			transform: translateX(100%);
+		}
+		to {
+			transform: translateX(0);
+		}
+	}
+
+	.animate-slide-in-right {
+		animation: slide-in-right 0.2s ease-out;
+	}
+</style>
