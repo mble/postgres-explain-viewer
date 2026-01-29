@@ -2,6 +2,7 @@
 	import { rawJson, parseError, loadPlan, clearPlan, analyzedPlan } from '$lib/stores/plan';
 	import { EXAMPLE_PLAN } from '$lib/constants/example';
 	import ScrollContainer from './ScrollContainer.svelte';
+	import SqlHighlight from './SqlHighlight.svelte';
 
 	let jsonInput = $state('');
 	let sqlInput = $state('');
@@ -352,7 +353,7 @@
 					{#if $analyzedPlan.queryText}
 						<div id="section-query" class="stat-card">
 							<h3 class="metric-label mb-2">Query</h3>
-							<pre class="code-block text-[10px] max-h-20 overflow-auto">{$analyzedPlan.queryText}</pre>
+							<SqlHighlight sql={$analyzedPlan.queryText} />
 						</div>
 					{/if}
 				</div>
