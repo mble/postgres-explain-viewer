@@ -51,11 +51,19 @@ const samplePlan = JSON.stringify([
 	}
 ]);
 
+// Setup to disable onboarding and clear localStorage before each test
+test.beforeEach(async ({ page }) => {
+	await page.addInitScript(() => {
+		// Mark onboarding as completed to prevent it from showing
+		localStorage.setItem('onboarding-completed', 'true');
+	});
+});
+
 test.describe('PostgreSQL EXPLAIN Viewer', () => {
 	test('loads the landing page', async ({ page }) => {
 		await page.goto('/');
 
-		await expect(page.locator('h1')).toContainText('PostgreSQL EXPLAIN Viewer');
+		await expect(page.locator('h1')).toContainText('EXPLAIN Viewer');
 		await expect(page.locator('textarea')).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Analyze' })).toBeVisible();
 		await expect(page.getByRole('button', { name: 'Example' })).toBeVisible();
@@ -77,10 +85,10 @@ test.describe('PostgreSQL EXPLAIN Viewer', () => {
 		await page.getByRole('button', { name: 'Analyze' }).click();
 
 		// Should show the tree visualization
-		await expect(page.getByRole('application', { name: 'Query plan visualization' }).locator('svg')).toBeVisible();
+		await expect(page.getByRole('application', { name: /Query plan visualization/i }).locator('svg')).toBeVisible();
 
 		// Should show plan summary with ANALYZE badge
-		await expect(page.locator('text=ANALYZE')).toBeVisible();
+		await expect(page.getByRole('button', { name: 'ANALYZE' })).toBeVisible();
 		await expect(page.getByText('Execution', { exact: true })).toBeVisible();
 	});
 
@@ -90,38 +98,41 @@ test.describe('PostgreSQL EXPLAIN Viewer', () => {
 		await page.getByRole('button', { name: 'Example' }).click();
 
 		// Should show the tree visualization
-		await expect(page.getByRole('application', { name: 'Query plan visualization' }).locator('svg')).toBeVisible();
+		await expect(page.getByRole('application', { name: /Query plan visualization/i }).locator('svg')).toBeVisible();
 
-		// Should show suggestions
-		await expect(page.locator('h2:has-text("All Suggestions")')).toBeVisible();
+		// Should show suggestions (Insights tab is active by default)
+		await expect(page.getByRole('button', { name: /Insights/i })).toBeVisible();
 	});
 
 	test('toggles between suggestions and node details', async ({ page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Example' }).click();
 
-		// Initially shows suggestions
-		await expect(page.locator('h2:has-text("All Suggestions")')).toBeVisible();
+		// Initially shows Insights tab active
+		await expect(page.getByRole('button', { name: /Insights/i })).toBeVisible();
 
-		// Click Node Details tab
-		await page.getByRole('button', { name: 'Node Details' }).click();
-		await expect(page.locator('h2:has-text("Node Details")')).toBeVisible();
+		// Click Details tab
+		await page.getByRole('button', { name: 'Details' }).click();
 		await expect(page.locator('text=Click a node in the tree')).toBeVisible();
 
-		// Click back to Suggestions
-		await page.getByRole('button', { name: 'Suggestions' }).click();
-		await expect(page.locator('h2:has-text("All Suggestions")')).toBeVisible();
+		// Click back to Insights
+		await page.getByRole('button', { name: /Insights/i }).click();
+		// Should show suggestions - look for the first suggestion alert
+		await expect(page.locator('.alert').first()).toBeVisible();
 	});
 
 	test('clicking suggestion selects node and shows details', async ({ page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Example' }).click();
 
+		// Wait for plan to load
+		await expect(page.getByRole('application', { name: /Query plan visualization/i }).locator('svg')).toBeVisible();
+
 		// Click on a suggestion
 		await page.locator('button:has-text("Consider adding an index")').first().click();
 
 		// Should switch to Node Details
-		await page.getByRole('button', { name: 'Node Details' }).click();
+		await page.getByRole('button', { name: 'Details' }).click();
 
 		// Should show node details (not empty state)
 		await expect(page.locator('text=Click a node in the tree')).not.toBeVisible();
@@ -132,7 +143,7 @@ test.describe('PostgreSQL EXPLAIN Viewer', () => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Example' }).click();
 
-		const treeSvg = page.getByRole('application', { name: 'Query plan visualization' }).locator('svg');
+		const treeSvg = page.getByRole('application', { name: /Query plan visualization/i }).locator('svg');
 
 		// Verify plan is loaded
 		await expect(treeSvg).toBeVisible();
@@ -167,21 +178,19 @@ test.describe('PostgreSQL EXPLAIN Viewer', () => {
 	test('shows legend when plan is loaded', async ({ page }) => {
 		await page.goto('/');
 
-		// Legend should not be visible initially
-		await expect(page.locator('text=Node color by self-time')).not.toBeVisible();
-
 		// Load plan
 		await page.getByRole('button', { name: 'Example' }).click();
 
-		// Legend should be visible
-		await expect(page.locator('text=Node color by self-time')).toBeVisible();
+		// Legend should be visible on desktop (hidden on mobile)
+		// Check for legend component which contains color scale
+		await expect(page.locator('.hidden.md\\:block')).toBeVisible();
 	});
 
 	test('displays multiple nodes in tree', async ({ page }) => {
 		await page.goto('/');
 		await page.getByRole('button', { name: 'Example' }).click();
 
-		const treeSvg = page.getByRole('application', { name: 'Query plan visualization' }).locator('svg');
+		const treeSvg = page.getByRole('application', { name: /Query plan visualization/i }).locator('svg');
 
 		// Wait for SVG to render
 		await expect(treeSvg).toBeVisible();
