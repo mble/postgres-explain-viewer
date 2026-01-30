@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { planHistory, type HistoryEntry } from '$lib/stores/history';
 	import { loadPlan } from '$lib/stores/plan';
+	import { updateUrlWithSlug } from '$lib/utils/url-state';
+	import { browser } from '$app/environment';
 	import ScrollContainer from './ScrollContainer.svelte';
 
 	interface Props {
@@ -8,6 +10,9 @@
 	}
 
 	let { onClose }: Props = $props();
+
+	let editingId = $state<string | null>(null);
+	let editValue = $state('');
 
 	function formatTimestamp(timestamp: number): string {
 		const date = new Date(timestamp);
@@ -64,6 +69,41 @@
 			planHistory.clear();
 		}
 	}
+
+	function startEditing(e: Event, entry: HistoryEntry) {
+		e.stopPropagation();
+		editingId = entry.id;
+		editValue = entry.title || entry.label;
+	}
+
+	function saveEdit(entry: HistoryEntry) {
+		if (editingId === entry.id) {
+			const newSlug = planHistory.updateTitle(entry.id, editValue.trim());
+			// Update URL if this is the currently loaded plan
+			if (browser && newSlug) {
+				const currentHash = window.location.hash;
+				if (currentHash.includes(entry.slug) || currentHash === `#p/${entry.slug}`) {
+					updateUrlWithSlug(newSlug);
+				}
+			}
+			editingId = null;
+		}
+	}
+
+	function cancelEdit() {
+		editingId = null;
+		editValue = '';
+	}
+
+	function handleEditKeydown(e: KeyboardEvent, entry: HistoryEntry) {
+		if (e.key === 'Enter') {
+			e.preventDefault();
+			saveEdit(entry);
+		} else if (e.key === 'Escape') {
+			e.preventDefault();
+			cancelEdit();
+		}
+	}
 </script>
 
 <div class="flex flex-col h-full">
@@ -96,16 +136,27 @@
 					{#each $planHistory as entry (entry.id)}
 						<div
 							class="relative p-3 rounded-lg bg-[var(--surface-tertiary)] hover:bg-[var(--surface-secondary)] border border-transparent hover:border-[var(--border-primary)] transition-all group cursor-pointer"
-							onclick={() => handleLoad(entry)}
-							onkeydown={(e) => e.key === 'Enter' && handleLoad(entry)}
+							onclick={() => editingId !== entry.id && handleLoad(entry)}
+							onkeydown={(e) => e.key === 'Enter' && editingId !== entry.id && handleLoad(entry)}
 							role="button"
 							tabindex="0"
 						>
 							<div class="flex items-start justify-between gap-2">
 								<div class="flex-1 min-w-0">
-									<p class="text-sm font-medium text-[var(--text-primary)] truncate">
-										{entry.label}
-									</p>
+									{#if editingId === entry.id}
+										<input
+											type="text"
+											bind:value={editValue}
+											onkeydown={(e) => handleEditKeydown(e, entry)}
+											onblur={() => saveEdit(entry)}
+											class="w-full text-sm font-medium text-[var(--text-primary)] bg-[var(--surface-primary)] border border-[var(--border-primary)] rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-[var(--color-primary-500)]"
+											onclick={(e) => e.stopPropagation()}
+										/>
+									{:else}
+										<p class="text-sm font-medium text-[var(--text-primary)] truncate">
+											{entry.title || entry.label}
+										</p>
+									{/if}
 									<div class="flex items-center gap-2 mt-1">
 										<span class="text-xs text-[var(--text-tertiary)]">
 											{formatTimestamp(entry.timestamp)}
@@ -117,15 +168,28 @@
 										{/if}
 									</div>
 								</div>
-								<button
-									onclick={(e) => handleDelete(e, entry.id)}
-									class="p-1 text-[var(--text-tertiary)] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
-									aria-label="Delete from history"
-								>
-									<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-										<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-									</svg>
-								</button>
+								<div class="flex items-center gap-1">
+									{#if editingId !== entry.id}
+										<button
+											onclick={(e) => startEditing(e, entry)}
+											class="p-1 text-[var(--text-tertiary)] hover:text-[var(--text-primary)] opacity-0 group-hover:opacity-100 transition-all"
+											aria-label="Edit title"
+										>
+											<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+												<path stroke-linecap="round" stroke-linejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+											</svg>
+										</button>
+									{/if}
+									<button
+										onclick={(e) => handleDelete(e, entry.id)}
+										class="p-1 text-[var(--text-tertiary)] hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all"
+										aria-label="Delete from history"
+									>
+										<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+											<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+										</svg>
+									</button>
+								</div>
 							</div>
 						</div>
 					{/each}

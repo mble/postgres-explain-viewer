@@ -6,6 +6,7 @@ import { resetSuggestionCounter } from '$lib/utils/suggestions';
 
 export const rawJson = writable<string>('');
 export const sqlQuery = writable<string>('');
+export const planTitle = writable<string | undefined>(undefined);
 export const analyzedPlan = writable<AnalyzedPlan | null>(null);
 export const selectedNodeId = writable<string | null>(null);
 export const parseError = writable<string | null>(null);
@@ -70,6 +71,7 @@ export function selectNode(nodeId: string | null): void {
 export function clearPlan(): void {
 	rawJson.set('');
 	sqlQuery.set('');
+	planTitle.set(undefined);
 	analyzedPlan.set(null);
 	selectedNodeId.set(null);
 	parseError.set(null);

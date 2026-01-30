@@ -4,9 +4,21 @@
 	import ScrollContainer from './ScrollContainer.svelte';
 	import SqlHighlight from './SqlHighlight.svelte';
 
+	interface Props {
+		onTitleChange?: (title: string | undefined) => void;
+	}
+
+	let { onTitleChange }: Props = $props();
+
 	let jsonInput = $state('');
 	let sqlInput = $state('');
+	let titleInput = $state('');
 	let activeTab = $state<'json' | 'sql'>('json');
+
+	// Notify parent when title changes
+	$effect(() => {
+		onTitleChange?.(titleInput.trim() || undefined);
+	});
 
 	function handleParse() {
 		loadPlan(jsonInput, sqlInput);
@@ -21,6 +33,7 @@
 	function handleClear() {
 		jsonInput = '';
 		sqlInput = '';
+		titleInput = '';
 		clearPlan();
 	}
 
@@ -49,6 +62,14 @@
 		<div class="flex-shrink-0 flex items-center justify-between mb-3">
 			<h2 class="text-sm font-semibold text-[var(--text-primary)]">Input</h2>
 		</div>
+
+		<!-- Title input -->
+		<input
+			type="text"
+			bind:value={titleInput}
+			placeholder="Plan title (optional)"
+			class="input mb-3 text-sm"
+		/>
 
 		<!-- Tab buttons -->
 		<div class="flex-shrink-0 tabs mb-3">

@@ -5,6 +5,7 @@
 
 import { writable, derived } from 'svelte/store';
 import { compress, decompress } from '$lib/utils/compression';
+import { slugify, generateSlug } from '$lib/utils/slug';
 import { browser } from '$app/environment';
 
 const MAX_HISTORY_SIZE = 20;
@@ -14,6 +15,8 @@ export interface HistoryEntry {
 	id: string;
 	timestamp: number;
 	label: string;
+	slug: string;
+	title?: string;
 	compressedPlan: string;
 	compressedSql?: string;
 	executionTime: number | null;
@@ -57,6 +60,27 @@ function generateLabel(json: string, sql: string | undefined): string {
 	return 'Query Plan';
 }
 
+/**
+ * Migrate legacy entries that don't have slugs
+ */
+function migrateEntries(entries: HistoryEntry[]): HistoryEntry[] {
+	const existingSlugs = new Set<string>();
+
+	return entries.map((entry) => {
+		if (entry.slug) {
+			existingSlugs.add(entry.slug);
+			return entry;
+		}
+
+		// Generate slug from title or label
+		const text = entry.title || entry.label;
+		const slug = generateSlug(text, existingSlugs);
+		existingSlugs.add(slug);
+
+		return { ...entry, slug };
+	});
+}
+
 function loadFromStorage(): HistoryEntry[] {
 	if (!browser) return [];
 
@@ -67,8 +91,8 @@ function loadFromStorage(): HistoryEntry[] {
 		const entries = JSON.parse(stored);
 		if (!Array.isArray(entries)) return [];
 
-		// Validate entries
-		return entries.filter(
+		// Validate entries (slug is optional for migration)
+		const validEntries = entries.filter(
 			(entry: unknown): entry is HistoryEntry =>
 				typeof entry === 'object' &&
 				entry !== null &&
@@ -77,6 +101,9 @@ function loadFromStorage(): HistoryEntry[] {
 				typeof (entry as HistoryEntry).label === 'string' &&
 				typeof (entry as HistoryEntry).compressedPlan === 'string'
 		);
+
+		// Migrate entries without slugs
+		return migrateEntries(validEntries);
 	} catch {
 		return [];
 	}
@@ -113,19 +140,31 @@ function createHistoryStore() {
 		/**
 		 * Add a new plan to history
 		 */
-		addPlan(json: string, sql?: string, executionTime?: number | null): HistoryEntry {
-			const entry: HistoryEntry = {
-				id: generateId(),
-				timestamp: Date.now(),
-				label: generateLabel(json, sql),
-				compressedPlan: compress(json),
-				compressedSql: sql ? compress(sql) : undefined,
-				executionTime: executionTime ?? null
-			};
+		addPlan(json: string, sql?: string, executionTime?: number | null, title?: string): HistoryEntry {
+			let entry: HistoryEntry;
 
 			entries.update((current) => {
 				// Remove duplicate (same compressed plan)
-				const filtered = current.filter((e) => e.compressedPlan !== entry.compressedPlan);
+				const compressedPlan = compress(json);
+				const filtered = current.filter((e) => e.compressedPlan !== compressedPlan);
+
+				// Get existing slugs for uniqueness
+				const existingSlugs = new Set(filtered.map((e) => e.slug));
+
+				// Generate label and slug
+				const label = generateLabel(json, sql);
+				const slug = generateSlug(title || label, existingSlugs);
+
+				entry = {
+					id: generateId(),
+					timestamp: Date.now(),
+					label,
+					slug,
+					title,
+					compressedPlan,
+					compressedSql: sql ? compress(sql) : undefined,
+					executionTime: executionTime ?? null
+				};
 
 				// Add new entry at the beginning
 				const updated = [entry, ...filtered];
@@ -134,7 +173,7 @@ function createHistoryStore() {
 				return updated.slice(0, MAX_HISTORY_SIZE);
 			});
 
-			return entry;
+			return entry!;
 		},
 
 		/**
@@ -170,6 +209,41 @@ function createHistoryStore() {
 			entries.update((current) =>
 				current.map((e) => (e.id === id ? { ...e, label } : e))
 			);
+		},
+
+		/**
+		 * Get entry by slug
+		 */
+		getBySlug(slug: string): HistoryEntry | undefined {
+			let result: HistoryEntry | undefined;
+			entries.subscribe((current) => {
+				result = current.find((e) => e.slug === slug);
+			})();
+			return result;
+		},
+
+		/**
+		 * Update entry title and regenerate slug
+		 */
+		updateTitle(id: string, title: string): string {
+			let newSlug = '';
+			entries.update((current) => {
+				const index = current.findIndex((e) => e.id === id);
+				if (index === -1) return current;
+
+				// Get existing slugs excluding the current entry
+				const existingSlugs = new Set(
+					current.filter((e) => e.id !== id).map((e) => e.slug)
+				);
+
+				// Generate new slug from title
+				newSlug = generateSlug(title || current[index].label, existingSlugs);
+
+				return current.map((e) =>
+					e.id === id ? { ...e, title, slug: newSlug } : e
+				);
+			});
+			return newSlug;
 		}
 	};
 }

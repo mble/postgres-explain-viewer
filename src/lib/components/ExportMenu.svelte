@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { analyzedPlan, rawJson, sqlQuery } from '$lib/stores/plan';
+	import { analyzedPlan, rawJson, sqlQuery, planTitle } from '$lib/stores/plan';
 	import { exportSvg, exportPng, exportMarkdown, copyLlmPrompt } from '$lib/utils/export';
 	import { copyShareableUrl, type UrlState } from '$lib/utils/url-state';
 	import { toast } from '$lib/stores/toast';
@@ -62,7 +62,8 @@
 	async function handleCopyLink() {
 		const state: UrlState = {
 			json: $rawJson,
-			sql: $sqlQuery || undefined
+			sql: $sqlQuery || undefined,
+			title: $planTitle
 		};
 
 		const success = await copyShareableUrl(state);

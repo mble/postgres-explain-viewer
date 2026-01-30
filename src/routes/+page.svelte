@@ -1,12 +1,12 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { browser } from '$app/environment';
-	import { analyzedPlan, selectedNode, loadPlan, rawJson, sqlQuery } from '$lib/stores/plan';
+	import { analyzedPlan, selectedNode, loadPlan, rawJson, sqlQuery, planTitle } from '$lib/stores/plan';
 	import { planHistory } from '$lib/stores/history';
 	import { comparison } from '$lib/stores/comparison';
 	const comparisonIsActive = comparison.isActive;
 	import { onboarding, currentStep } from '$lib/stores/onboarding';
-	import { decodeFromUrl, updateUrlHash, hasUrlState } from '$lib/utils/url-state';
+	import { parseUrlHash, updateUrlWithSlug, hasUrlState } from '$lib/utils/url-state';
 	import ExplainInput from '$lib/components/ExplainInput.svelte';
 	import PlanTree from '$lib/components/PlanTree.svelte';
 	import NodeDetails from '$lib/components/NodeDetails.svelte';
@@ -27,9 +27,24 @@
 	// Load plan from URL on mount
 	onMount(() => {
 		if (browser && hasUrlState()) {
-			const state = decodeFromUrl(window.location.hash);
-			if (state) {
-				loadPlan(state.json, state.sql ?? '');
+			const parsed = parseUrlHash(window.location.hash);
+
+			if (parsed?.type === 'slug') {
+				// Look up in history
+				const entry = planHistory.getBySlug(parsed.slug);
+				if (entry) {
+					const data = planHistory.getPlanData(entry);
+					if (data) {
+						// Set title before loading so it gets used in the effect
+						planTitle.set(entry.title);
+						loadPlan(data.json, data.sql ?? '');
+					}
+				}
+			} else if (parsed?.type === 'compressed') {
+				// Load directly from compressed URL, add to history
+				// Set title before loading so it gets used in the effect
+				planTitle.set(parsed.state.title);
+				loadPlan(parsed.state.json, parsed.state.sql ?? '');
 			}
 		}
 
@@ -51,11 +66,17 @@
 	// Update URL when plan changes
 	$effect(() => {
 		if (browser && $analyzedPlan && $rawJson) {
-			updateUrlHash({ json: $rawJson, sql: $sqlQuery || undefined });
-			// Save to history
-			planHistory.addPlan($rawJson, $sqlQuery || undefined, $analyzedPlan.executionTime);
+			// Save to history and get the entry with its slug
+			const entry = planHistory.addPlan($rawJson, $sqlQuery || undefined, $analyzedPlan.executionTime, $planTitle);
+			// Update URL to use slug format for cleaner URLs
+			updateUrlWithSlug(entry.slug);
 		}
 	});
+
+	// Function to set plan title (called from ExplainInput)
+	function setPlanTitle(title: string | undefined) {
+		planTitle.set(title);
+	}
 
 	// Advance onboarding when plan loads
 	$effect(() => {
@@ -169,7 +190,7 @@
 								<h2 class="text-xl font-semibold text-[var(--text-primary)] mb-1">Analyze Your Query Plan</h2>
 								<p class="text-sm text-[var(--text-secondary)]">Paste your PostgreSQL EXPLAIN output to visualize and optimize</p>
 							</div>
-							<ExplainInput />
+							<ExplainInput onTitleChange={setPlanTitle} />
 						</div>
 
 						<!-- Help Text -->
@@ -188,7 +209,7 @@
 					<div class="col-span-12 lg:col-span-3 flex flex-col gap-3 min-h-0">
 						<!-- Plan Summary -->
 						<div class="flex-shrink-0 max-h-[45%] card p-4 overflow-hidden">
-							<ExplainInput />
+							<ExplainInput onTitleChange={setPlanTitle} />
 						</div>
 
 						<!-- Node List -->
