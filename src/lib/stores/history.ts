@@ -120,8 +120,8 @@ function saveToStorage(entries: HistoryEntry[]): void {
 		const reduced = entries.slice(0, Math.floor(entries.length / 2));
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(reduced));
-		} catch {
-			// Give up
+		} catch (retryError) {
+			console.error('Failed to save history even after reducing size:', retryError);
 		}
 	}
 }

@@ -3,11 +3,17 @@ import { browser } from '$app/environment';
 
 type Theme = 'light' | 'dark';
 
+function isValidTheme(value: string | null): value is Theme {
+	return value === 'light' || value === 'dark';
+}
+
 function createThemeStore() {
-	const initialTheme = browser
-		? (localStorage.getItem('theme') as Theme) ||
-			(window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light')
-		: 'light';
+	const stored = browser ? localStorage.getItem('theme') : null;
+	const initialTheme = isValidTheme(stored)
+		? stored
+		: browser && window.matchMedia('(prefers-color-scheme: dark)').matches
+			? 'dark'
+			: 'light';
 
 	const { subscribe, set, update } = writable<Theme>(initialTheme);
 
@@ -32,9 +38,9 @@ function createThemeStore() {
 		},
 		init: () => {
 			if (browser) {
-				const stored = localStorage.getItem('theme') as Theme | null;
+				const stored = localStorage.getItem('theme');
 				const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-				const theme = stored || (prefersDark ? 'dark' : 'light');
+				const theme = isValidTheme(stored) ? stored : (prefersDark ? 'dark' : 'light');
 				document.documentElement.classList.toggle('dark', theme === 'dark');
 				set(theme);
 			}

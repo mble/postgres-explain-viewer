@@ -583,12 +583,12 @@
 
 		const colors = getThemeColors(isDark);
 
-		g.selectAll('.node .card-bg')
-			.attr('stroke', (d: any) => {
+		g.selectAll<SVGRectElement, HierarchyPointNode<TreeNode>>('.node .card-bg')
+			.attr('stroke', (d) => {
 				if (d.data.id === nodeId) return colors.nodeStrokeSelected;
 				return d.data.data.isHot ? colors.nodeStrokeHot : colors.nodeStroke;
 			})
-			.attr('stroke-width', (d: any) => {
+			.attr('stroke-width', (d) => {
 				if (d.data.id === nodeId) return 3;
 				return d.data.data.isHot ? 2 : 1;
 			});

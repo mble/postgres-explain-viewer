@@ -382,7 +382,8 @@ export async function copyLlmPrompt(plan: AnalyzedPlan): Promise<boolean> {
 	try {
 		await navigator.clipboard.writeText(prompt);
 		return true;
-	} catch {
+	} catch (error) {
+		console.error('Failed to copy to clipboard:', error);
 		return false;
 	}
 }
