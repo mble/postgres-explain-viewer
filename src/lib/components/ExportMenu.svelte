@@ -1,10 +1,10 @@
 <script lang="ts">
 	import { analyzedPlan, rawJson, sqlQuery } from '$lib/stores/plan';
-	import { exportSvg, exportPng, exportMarkdown } from '$lib/utils/export';
+	import { exportSvg, exportPng, exportMarkdown, copyLlmPrompt } from '$lib/utils/export';
 	import { copyShareableUrl, type UrlState } from '$lib/utils/url-state';
+	import { toast } from '$lib/stores/toast';
 
 	let isOpen = $state(false);
-	let copySuccess = $state(false);
 
 	function toggleMenu(e: Event) {
 		e.stopPropagation();
@@ -34,6 +34,7 @@
 				await exportPng(svg, 'query-plan.png', 2);
 			} catch (e) {
 				console.error('PNG export failed:', e);
+				toast.error('Failed to export PNG');
 			}
 		}
 		closeMenu();
@@ -46,6 +47,18 @@
 		closeMenu();
 	}
 
+	async function handleCopyForLlm() {
+		if ($analyzedPlan) {
+			const success = await copyLlmPrompt($analyzedPlan);
+			if (success) {
+				toast.success('Copied to clipboard');
+			} else {
+				toast.error('Failed to copy');
+			}
+		}
+		closeMenu();
+	}
+
 	async function handleCopyLink() {
 		const state: UrlState = {
 			json: $rawJson,
@@ -54,10 +67,9 @@
 
 		const success = await copyShareableUrl(state);
 		if (success) {
-			copySuccess = true;
-			setTimeout(() => {
-				copySuccess = false;
-			}, 2000);
+			toast.success('Link copied to clipboard');
+		} else {
+			toast.error('Failed to copy link');
 		}
 		closeMenu();
 	}
@@ -102,17 +114,21 @@
 				class="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] flex items-center gap-2"
 				role="menuitem"
 			>
-				{#if copySuccess}
-					<svg class="w-4 h-4 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
-					</svg>
-					<span class="text-green-600 dark:text-green-400">Copied!</span>
-				{:else}
-					<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-					</svg>
-					<span>Copy Link</span>
-				{/if}
+				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
+				</svg>
+				<span>Copy Link</span>
+			</button>
+
+			<button
+				onclick={handleCopyForLlm}
+				class="w-full px-4 py-2 text-left text-sm text-[var(--text-primary)] hover:bg-[var(--surface-tertiary)] flex items-center gap-2"
+				role="menuitem"
+			>
+				<svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+				</svg>
+				<span>Copy for LLM</span>
 			</button>
 
 			<div class="h-px bg-[var(--border-secondary)] my-1"></div>

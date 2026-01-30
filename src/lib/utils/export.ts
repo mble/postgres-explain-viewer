@@ -276,3 +276,179 @@ function downloadBlob(blob: Blob, filename: string): void {
 	document.body.removeChild(link);
 	URL.revokeObjectURL(url);
 }
+
+/**
+ * Generate LLM-friendly prompt text for plan analysis
+ * Optimized for pasting into an LLM chat for further assistance
+ */
+export function generateLlmPrompt(plan: AnalyzedPlan): string {
+	const lines: string[] = [];
+
+	lines.push('I have a PostgreSQL query that needs optimization. Here is the EXPLAIN ANALYZE output and analysis:');
+	lines.push('');
+
+	// Query
+	if (plan.queryText) {
+		lines.push('## SQL Query');
+		lines.push('```sql');
+		lines.push(plan.queryText);
+		lines.push('```');
+		lines.push('');
+	}
+
+	// Key metrics
+	lines.push('## Performance Metrics');
+	if (plan.executionTime !== null) {
+		lines.push(`- Execution Time: ${plan.executionTime.toFixed(2)} ms`);
+	}
+	if (plan.planningTime !== null) {
+		lines.push(`- Planning Time: ${plan.planningTime.toFixed(2)} ms`);
+	}
+	lines.push(`- Total Time: ${plan.totalTime.toFixed(2)} ms`);
+
+	if (plan.bufferStats) {
+		const totalBlocks = plan.bufferStats.sharedHit + plan.bufferStats.sharedRead;
+		if (totalBlocks > 0) {
+			const hitRate = ((plan.bufferStats.sharedHit / totalBlocks) * 100).toFixed(1);
+			lines.push(`- Buffer Hit Rate: ${hitRate}% (${plan.bufferStats.sharedHit} hits, ${plan.bufferStats.sharedRead} reads)`);
+		}
+		if (plan.bufferStats.tempRead > 0 || plan.bufferStats.tempWritten > 0) {
+			lines.push(`- Temp Blocks: ${plan.bufferStats.tempRead} read, ${plan.bufferStats.tempWritten} written (spilling to disk)`);
+		}
+	}
+	lines.push('');
+
+	// Plan structure with metrics
+	lines.push('## Execution Plan');
+	lines.push('```');
+	lines.push(renderLlmPlanTree(plan.root));
+	lines.push('```');
+	lines.push('');
+
+	// Identified issues
+	if (plan.allSuggestions.length > 0) {
+		lines.push('## Identified Issues');
+		lines.push('');
+
+		const byCategory = groupSuggestionsByCategory(plan.allSuggestions);
+
+		for (const [category, suggestions] of Object.entries(byCategory)) {
+			lines.push(`### ${formatCategory(category)}`);
+			for (const suggestion of suggestions) {
+				const severity = suggestion.severity === 'critical' ? '[CRITICAL]' :
+				                 suggestion.severity === 'warning' ? '[WARNING]' : '[INFO]';
+				lines.push(`${severity} ${suggestion.title}`);
+				lines.push(`  ${suggestion.description}`);
+				lines.push('');
+			}
+		}
+	} else {
+		lines.push('## Identified Issues');
+		lines.push('No significant issues detected by automated analysis.');
+		lines.push('');
+	}
+
+	// Hot nodes detail
+	const hotNodes = collectHotNodes(plan.root);
+	if (hotNodes.length > 0) {
+		lines.push('## Hot Nodes (most expensive)');
+		for (const node of hotNodes) {
+			lines.push(`- ${node['Node Type']}${node['Relation Name'] ? ` on "${node['Relation Name']}"` : ''}`);
+			lines.push(`  Time: ${node.selfTime.toFixed(2)} ms (${node.selfTimePercent.toFixed(1)}% of total)`);
+			if (node['Actual Rows'] !== undefined && node['Plan Rows'] !== undefined) {
+				lines.push(`  Rows: ${node['Actual Rows']} actual vs ${node['Plan Rows']} estimated`);
+			}
+			if (node.hotReasons.length > 0) {
+				lines.push(`  Flags: ${node.hotReasons.join(', ')}`);
+			}
+			lines.push('');
+		}
+	}
+
+	lines.push('Please analyze this query plan and suggest specific optimizations. Consider:');
+	lines.push('1. Index recommendations (columns, type, partial indexes)');
+	lines.push('2. Query restructuring opportunities');
+	lines.push('3. Configuration changes (work_mem, etc.)');
+	lines.push('4. Any other performance improvements');
+
+	return lines.join('\n');
+}
+
+/**
+ * Copy LLM-friendly prompt to clipboard
+ */
+export async function copyLlmPrompt(plan: AnalyzedPlan): Promise<boolean> {
+	const prompt = generateLlmPrompt(plan);
+	try {
+		await navigator.clipboard.writeText(prompt);
+		return true;
+	} catch {
+		return false;
+	}
+}
+
+function renderLlmPlanTree(node: import('$lib/types/explain').AnalyzedPlanNode, indent = 0): string {
+	const prefix = '  '.repeat(indent);
+	const marker = indent === 0 ? '' : '-> ';
+
+	let line = `${prefix}${marker}${node['Node Type']}`;
+
+	if (node['Relation Name']) {
+		line += ` on ${node['Relation Name']}`;
+	}
+	if (node['Index Name']) {
+		line += ` using ${node['Index Name']}`;
+	}
+
+	// Add key metrics inline
+	const metrics: string[] = [];
+	if (node.selfTimePercent > 0.1) {
+		metrics.push(`${node.selfTimePercent.toFixed(1)}% time`);
+	}
+	if (node['Actual Rows'] !== undefined) {
+		metrics.push(`${node['Actual Rows']} rows`);
+	}
+	if (node['Actual Loops'] !== undefined && node['Actual Loops'] > 1) {
+		metrics.push(`${node['Actual Loops']} loops`);
+	}
+	if (node.isHot) {
+		metrics.push('HOT');
+	}
+
+	if (metrics.length > 0) {
+		line += ` (${metrics.join(', ')})`;
+	}
+
+	const lines = [line];
+
+	// Add filter info for relevant nodes
+	if (node['Filter'] && node['Rows Removed by Filter']) {
+		lines.push(`${prefix}  Filter: ${node['Filter']}`);
+		lines.push(`${prefix}  Rows Removed: ${node['Rows Removed by Filter']}`);
+	}
+
+	if (node.Plans) {
+		for (const child of node.Plans) {
+			lines.push(renderLlmPlanTree(child, indent + 1));
+		}
+	}
+
+	return lines.join('\n');
+}
+
+function collectHotNodes(node: import('$lib/types/explain').AnalyzedPlanNode): import('$lib/types/explain').AnalyzedPlanNode[] {
+	const hot: import('$lib/types/explain').AnalyzedPlanNode[] = [];
+
+	if (node.isHot) {
+		hot.push(node);
+	}
+
+	if (node.Plans) {
+		for (const child of node.Plans) {
+			hot.push(...collectHotNodes(child));
+		}
+	}
+
+	// Sort by self-time descending
+	return hot.sort((a, b) => b.selfTime - a.selfTime);
+}

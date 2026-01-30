@@ -3,6 +3,7 @@
 	import favicon from '$lib/assets/favicon.svg';
 	import { theme } from '$lib/stores/theme';
 	import { onMount } from 'svelte';
+	import Toast from '$lib/components/Toast.svelte';
 
 	let { children } = $props();
 
@@ -16,3 +17,4 @@
 </svelte:head>
 
 {@render children()}
+<Toast />
