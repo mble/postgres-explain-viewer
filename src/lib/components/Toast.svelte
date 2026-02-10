@@ -7,8 +7,8 @@
 		{#each $toast as t (t.id)}
 			<div
 				class="flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg animate-slide-up {
-					t.type === 'success' ? 'bg-emerald-600 text-white' :
-					t.type === 'error' ? 'bg-red-600 text-white' :
+					t.type === 'success' ? 'bg-[var(--color-success)] text-white' :
+					t.type === 'error' ? 'bg-[var(--color-danger)] text-white' :
 					'bg-[var(--surface-elevated)] text-[var(--text-primary)] border border-[var(--border-primary)]'
 				}"
 				role="status"

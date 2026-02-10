@@ -35,7 +35,8 @@
 	<!-- Top fade indicator -->
 	{#if canScrollUp}
 		<div
-			class="absolute top-0 left-0 right-0 h-6 bg-gradient-to-b from-white dark:from-gray-800 to-transparent pointer-events-none z-10"
+			class="absolute top-0 left-0 right-0 h-6 pointer-events-none z-10"
+			style="background: linear-gradient(to bottom, var(--surface-elevated), transparent);"
 		></div>
 	{/if}
 
@@ -51,7 +52,8 @@
 	<!-- Bottom fade indicator -->
 	{#if canScrollDown}
 		<div
-			class="absolute bottom-0 left-0 right-0 h-6 bg-gradient-to-t from-white dark:from-gray-800 to-transparent pointer-events-none z-10"
+			class="absolute bottom-0 left-0 right-0 h-6 pointer-events-none z-10"
+			style="background: linear-gradient(to top, var(--surface-elevated), transparent);"
 		></div>
 	{/if}
 </div>

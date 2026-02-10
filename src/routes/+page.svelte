@@ -112,21 +112,21 @@
 <!-- Onboarding Tooltips -->
 <OnboardingTooltips />
 
-<div class="h-screen flex flex-col overflow-hidden bg-[var(--surface-secondary)]">
+<div class="ps-shell h-screen flex flex-col overflow-hidden bg-[var(--surface-secondary)]">
 	<!-- Header -->
-	<header class="flex-shrink-0 bg-[var(--surface-elevated)] border-b border-[var(--border-primary)]" style="box-shadow: var(--shadow-xs);">
+	<header class="shell-header flex-shrink-0 border-b border-[var(--border-primary)]" style="box-shadow: var(--shadow-xs);">
 		<div class="max-w-screen-2xl mx-auto px-4 sm:px-6 h-14 flex items-center justify-between">
 			<div class="flex items-center gap-3">
 				<!-- Logo / Brand -->
 				<div class="flex items-center gap-2.5">
-					<div class="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-sm">
+					<div class="brand-mark w-8 h-8 rounded-lg flex items-center justify-center">
 						<svg class="w-4.5 h-4.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
 						</svg>
 					</div>
 					<div class="hidden sm:block">
 						<h1 class="text-[15px] font-semibold text-[var(--text-primary)] leading-tight">EXPLAIN Viewer</h1>
-						<p class="text-[11px] text-[var(--text-tertiary)] leading-tight">PostgreSQL Query Analyzer</p>
+						<p class="text-[11px] text-[var(--text-tertiary)] leading-tight">Query Performance Studio</p>
 					</div>
 				</div>
 			</div>
@@ -180,9 +180,9 @@
 				<div class="h-full flex items-center justify-center animate-fade-in">
 					<div class="w-full max-w-2xl">
 						<!-- Hero Card -->
-						<div class="card p-6 sm:p-8">
+						<div class="hero-card card relative overflow-hidden p-6 sm:p-8">
 							<div class="text-center mb-6">
-								<div class="inline-flex items-center justify-center w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 shadow-lg mb-4">
+								<div class="brand-mark inline-flex items-center justify-center w-12 h-12 rounded-xl shadow-lg mb-4">
 									<svg class="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
 										<path stroke-linecap="round" stroke-linejoin="round" d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
 									</svg>

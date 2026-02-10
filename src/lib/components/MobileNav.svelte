@@ -24,7 +24,7 @@
 					onclick={() => onPanelChange(panel.id)}
 					class="relative flex-1 flex flex-col items-center justify-center gap-0.5 transition-colors {
 						activePanel === panel.id
-							? 'text-blue-600 dark:text-blue-400 bg-blue-50 dark:bg-blue-900/20'
+							? 'text-[var(--color-primary-700)] dark:text-[var(--color-primary-300)] bg-[var(--color-primary-100)] dark:bg-[var(--color-primary-700)]/20'
 							: 'text-[var(--text-tertiary)] hover:text-[var(--text-secondary)]'
 					}"
 					aria-current={activePanel === panel.id ? 'page' : undefined}

@@ -48,7 +48,7 @@
 			linkStrokeHot: isDark ? '#f87171' : '#fca5a5',
 			nodeStroke: isDark ? '#4b5563' : '#d1d5db',
 			nodeStrokeHot: '#ef4444',
-			nodeStrokeSelected: '#2563eb',
+			nodeStrokeSelected: '#e75a26',
 			nodeBg: isDark ? '#1f2937' : '#ffffff',
 			textPrimary: isDark ? '#f3f4f6' : '#1f2937',
 			textSecondary: isDark ? '#9ca3af' : '#6b7280',
@@ -675,7 +675,7 @@
 <!-- svelte-ignore a11y_no_noninteractive_element_interactions a11y_no_noninteractive_tabindex -->
 <div
 	bind:this={container}
-	class="w-full h-full bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+	class="w-full h-full bg-[var(--surface-primary)] dark:bg-[var(--surface-elevated)] rounded-lg border border-[var(--border-primary)] overflow-hidden focus:outline-none focus:ring-2 focus:ring-[var(--color-primary-500)] focus:ring-offset-2"
 	onclick={() => selectNode(null)}
 	onkeydown={(e) => {
 		if (!navMap) return;

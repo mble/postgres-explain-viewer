@@ -135,7 +135,7 @@
 
 	<!-- Spotlight ring -->
 	<div
-		class="fixed z-40 pointer-events-none rounded-xl ring-4 ring-blue-500 ring-opacity-80 animate-pulse-subtle"
+		class="fixed z-40 pointer-events-none rounded-xl ring-4 ring-[var(--color-primary-500)] ring-opacity-80 animate-pulse-subtle"
 		style="
 			top: {targetRect.top - 8}px;
 			left: {targetRect.left - 8}px;
@@ -155,7 +155,7 @@
 			<div class="flex gap-1">
 				{#each Array($progress.total) as _, i}
 					<div
-						class="w-2 h-2 rounded-full transition-colors {i < $progress.current ? 'bg-blue-500' : 'bg-gray-300 dark:bg-gray-600'}"
+						class="w-2 h-2 rounded-full transition-colors {i < $progress.current ? 'bg-[var(--color-primary-500)]' : 'bg-gray-300 dark:bg-gray-600'}"
 					></div>
 				{/each}
 			</div>
