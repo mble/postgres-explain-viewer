@@ -3,7 +3,7 @@
 	// Tree-shaken D3 imports - only import what we need (~60KB vs ~500KB)
 	import { select } from 'd3-selection';
 	import { hierarchy, tree } from 'd3-hierarchy';
-	import { linkHorizontal } from 'd3-shape';
+	import { linkVertical } from 'd3-shape';
 	import { zoom as d3zoom, zoomIdentity, zoomTransform } from 'd3-zoom';
 	import type { Selection, BaseType } from 'd3-selection';
 	import type { HierarchyPointNode, HierarchyPointLink } from 'd3-hierarchy';
@@ -141,23 +141,23 @@
 		g = svg.append('g')
 			.attr('transform', `translate(${margin.left},${margin.top})`);
 
-		// Create tree layout with larger spacing
+		// Create tree layout with larger spacing (top-to-bottom orientation)
 		const treeLayout = tree<TreeNode>()
-			.nodeSize([nodeHeight + 30, nodeWidth + 60]);
+			.nodeSize([nodeWidth + 60, nodeHeight + 60]);
 
 		const root = hierarchy(treeData);
 		const treeRoot = treeLayout(root);
 
-		// Calculate bounds
-		let minY = Infinity, maxY = -Infinity;
+		// Calculate horizontal bounds
+		let minX = Infinity, maxX = -Infinity;
 		treeRoot.each(d => {
-			if (d.x < minY) minY = d.x;
-			if (d.x > maxY) maxY = d.x;
+			if (d.x < minX) minX = d.x;
+			if (d.x > maxX) maxX = d.x;
 		});
 
-		// Adjust vertical position to center
-		const treeHeight = maxY - minY;
-		const offsetY = (height - margin.top - margin.bottom - treeHeight) / 2 - minY;
+		// Adjust horizontal position to center
+		const treeWidth = maxX - minX;
+		const offsetX = (width - margin.left - margin.right - treeWidth) / 2 - minX;
 
 		// Find max rows for scaling link widths
 		let maxRows = 0;
@@ -220,15 +220,15 @@
 				const isHot = maxRows > 0 && rows / maxRows > 0.5;
 				return isHot ? 'url(#arrow-hot)' : 'url(#arrow)';
 			})
-			.attr('d', linkHorizontal<HierarchyPointLink<TreeNode>, HierarchyPointNode<TreeNode>>()
-				.x(d => d.y)
-				.y(d => d.x + offsetY)
+			.attr('d', linkVertical<HierarchyPointLink<TreeNode>, HierarchyPointNode<TreeNode>>()
+				.x(d => d.x + offsetX)
+				.y(d => d.y)
 			);
 
 		// Draw connection dots at source (child node)
 		links.append('circle')
-			.attr('cx', d => d.source.y)
-			.attr('cy', d => d.source.x + offsetY)
+			.attr('cx', d => d.source.x + offsetX)
+			.attr('cy', d => d.source.y)
 			.attr('r', d => {
 				const rows = d.source.data.data['Actual Rows'] ?? 0;
 				return Math.max(3, getLinkWidth(rows, maxRows) / 2 + 1);
@@ -246,8 +246,8 @@
 			const linkGroup = select(this);
 
 			// Calculate midpoint of the link
-			const midX = (d.source.y + d.target.y) / 2;
-			const midY = (d.source.x + d.target.x) / 2 + offsetY;
+			const midX = (d.source.x + d.target.x) / 2 + offsetX;
+			const midY = (d.source.y + d.target.y) / 2;
 
 			// Background pill for label
 			const labelText = formatNumber(rows);
@@ -278,7 +278,7 @@
 		// Store node positions for centering
 		nodePositions = new Map();
 		treeRoot.descendants().forEach(d => {
-			nodePositions.set(d.data.id, { x: d.y, y: d.x + offsetY });
+			nodePositions.set(d.data.id, { x: d.x + offsetX, y: d.y });
 		});
 
 		// Create node groups
@@ -287,7 +287,7 @@
 			.enter()
 			.append('g')
 			.attr('class', 'node')
-			.attr('transform', d => `translate(${d.y},${d.x + offsetY})`)
+			.attr('transform', d => `translate(${d.x + offsetX},${d.y})`)
 			.style('cursor', 'pointer')
 			.on('click', (event, d) => {
 				event.stopPropagation();
